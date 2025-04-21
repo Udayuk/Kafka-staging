@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -11,19 +12,34 @@ import org.springframework.kafka.support.SendResult;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 @SpringBootApplication
 public class MonitoringApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(MonitoringApplication.class, args);
-		System.out.println("j");
+	public static void main(String[] args) throws InterruptedException {
+		ConfigurableApplicationContext context = SpringApplication.run(MonitoringApplication.class, args);
+		System.out.println("Starting now");
+
+		MessageProducer producer = context.getBean(MessageProducer.class);
+		MessageListener listener = context.getBean(MessageListener.class);
+
+		producer.sendMessage("Hello First message");
+		listener.latch.await(5, TimeUnit.SECONDS);
+		listener.listenGroupFoo();
+
+		context.close();
 
 	}
 
 	@Bean
 	public MessageProducer messageProducer(){
 		return new MessageProducer();
+	}
+
+	@Bean
+	public MessageListener messageListener(){
+		return new MessageListener();
 	}
 
 	public static class MessageProducer{
@@ -53,7 +69,7 @@ public class MonitoringApplication {
 
 		private CountDownLatch latch = new CountDownLatch(3);
 
-		@KafkaListener(topics = "${nessage.topic.name}", groupId = "foo", containerFactory = "fooKafkaListenerContainerFactory")
+		@KafkaListener(topics = "${message.topic.name}", groupId = "foo", containerFactory = "fooKafkaListenerContainerFactory")
 		public void listenGroupFoo(String message){
 			System.out.println("Received Message in group 'foo' :  " + message);
 			latch.countDown();
